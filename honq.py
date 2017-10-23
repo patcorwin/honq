@@ -46,8 +46,21 @@ import re
 
 try:
     import pathlib
-except:
+except ImportError:
     pathlib = None
+
+try:
+    # Python 2
+    from future_builtins import filter
+except ImportError:
+    # Python 3
+    pass
+
+try:
+    from itertools import ifilterfalse as filterfalse
+except ImportError:
+    from itertools import filterfalse
+
 
 
 ignoreCase = True
@@ -121,6 +134,7 @@ class Files(_Stream):
     '''
     Takes one or more folders, returning all the files beneath it, and sub dirs.
     '''
+    
     def __init__(self, *folders):
         '''
         init
@@ -152,7 +166,6 @@ class Files(_Stream):
         return self
 
 
-'''
 class Dirs(_Stream):
     
     def __init__(self, *folders):
@@ -169,16 +182,19 @@ class Dirs(_Stream):
                         dirs.remove(toRem)
                 
                 for d in dirs:
-                    yield path + '/' + d
+                    yield path + '/' + d, d
                 
-    def skipFolders(self, *folders):
-        regex = '((' + ')|('.join( folders ) + '))'
+    def skipFolders(self, *folders, **kwargs):
+        if 'exact' in kwargs and kwargs['exact']:
+            #regex = '((' + ')|('.join( folders ) + '))'
+            regex = '((^' + '$)|(^'.join( folders ) + '$))'
+        else:
+            regex = '((' + ')|('.join( folders ) + '))'
         
         flags = re.IGNORECASE if ignoreCase else 0
         self.ignore = re.compile(regex, flags=flags).search
         
         return self
-'''
 
 
 class _Like(_Stream):
@@ -199,13 +215,14 @@ class _Like(_Stream):
         self.regex = re.compile(regex, flags).search
         
         if testFullPath:
-            self.test = lambda (path, name): self.regex(path)
+            self.test = lambda path_name: self.regex(path_name[0])
         else:
-            self.test = lambda (path, name): self.regex(name)
+            self.test = lambda path_name: self.regex(path_name[1])
         
     def __iter__(self):
         _stream = iter(self.incoming)
         if self.invert:
-            return itertools.ifilterfalse(self.test, _stream)
+            return filterfalse(self.test, _stream)
         else:
-            return itertools.ifilter(self.test, _stream)
+            return filter(self.test, _stream)
+
